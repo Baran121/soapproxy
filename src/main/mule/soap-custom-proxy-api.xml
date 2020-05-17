@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<mule xmlns:wsc="http://www.mulesoft.org/schema/mule/wsc" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit-soap="http://www.mulesoft.org/schema/mule/apikit-soap" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/apikit-soap http://www.mulesoft.org/schema/mule/apikit-soap/current/mule-apikit-soap.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/wsc http://www.mulesoft.org/schema/mule/wsc/current/mule-wsc.xsd">
+    <http:listener-config name="api-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="${http.port}"/>
+    </http:listener-config>
+    <apikit-soap:config httpStatusVarName="httpStatus" name="soapkit-config" port="CalculatorSoap12" service="Calculator" wsdlLocation="calc-sample.wsdl" inboundValidationEnabled="true" />
+    <configuration-properties doc:name="Configuration properties" doc:id="15d8a0a5-486c-47e0-b187-e5c2c28d0512" file="config.yaml" />
+	<wsc:config name="Web_Service_Consumer_Config" doc:name="Web Service Consumer Config" doc:id="57315187-2e88-498c-94b7-465655754cdd" >
+		<wsc:connection wsdlLocation="api/calc-sample.wsdl" service="Calculator" port="CalculatorSoap12" address="http://www.dneonline.com/calculator.asmx" >
+			<wsc:web-service-security actor="http://schemas.xmlsoap.org/soap/actor/next" />
+		</wsc:connection>
+	</wsc:config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="2c4124e9-5813-44af-9662-ee525ee1ec1a" >
+		<http:request-connection host="www.dneonline.com" port="80" />
+	</http:request-config>
+	<flow name="common-soap-http-flow" doc:id="c5e01759-5734-4108-8196-f41ccc157bd1" >
+		<http:request method="POST" doc:name="Request" doc:id="28b4b492-0195-435b-8a9d-27de30caa5c3" config-ref="HTTP_Request_configuration" path="/calculator.asmx" outputMimeType="application/xml" outputEncoding="UTF-8">
+			<http:body><![CDATA[#[vars.originalSOAPPayload]]]></http:body>
+			<http:headers><![CDATA[#[attributes.header]]]></http:headers>
+		</http:request>
+		<ee:transform doc:name="Transform Message" doc:id="ea71e8a0-7a5c-42fc-9e88-d5e904f46d0b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+ns soap http://schemas.xmlsoap.org/soap/envelope/
+output application/xml
+---
+payload.soap#Envelope.soap#Body]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="api-main">
+        <http:listener config-ref="api-httpListenerConfig" path="/Calculator/CalculatorSoap12">
+            <http:response statusCode="#[attributes.protocolHeaders.httpStatus default 200]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[attributes.protocolHeaders default {}]</http:headers>
+            </http:response>
+            <http:error-response statusCode="#[attributes.protocolHeaders.httpStatus default 500]">
+                <http:body>#[payload]</http:body>
+                <http:headers>#[attributes.protocolHeaders default {}]</http:headers>
+            </http:error-response>
+        </http:listener>
+        <set-variable value="#[payload]" doc:name="Set Variable" doc:id="275ea263-be32-4b9e-9b12-12100e77509b" variableName="originalSOAPPayload"/>
+		<apikit-soap:router config-ref="soapkit-config">
+            <apikit-soap:attributes><![CDATA[#[%dw 2.0
+              output application/java
+              ---
+              {
+                  headers: attributes.headers,
+                  method: attributes.method,
+                  queryString: attributes.queryString
+            }]]]></apikit-soap:attributes>
+        </apikit-soap:router>
+    </flow>
+	<flow name="Add:\soapkit-config">
+		<flow-ref doc:name="common-soap-http-flow" doc:id="2b4b1e0d-7d41-4365-a60a-8d57ad57808a" name="common-soap-http-flow" />
+    </flow>
+    <flow name="Subtract:\soapkit-config">
+		<flow-ref doc:name="_common-soap-http-flow" doc:id="9dc092cb-45d2-458b-b784-cd3c62cedc63" name="common-soap-http-flow" />
+    </flow>
+    <flow name="Multiply:\soapkit-config">
+		<flow-ref doc:name="_common-soap-http-flow" doc:id="67cff135-f240-4051-bd90-13bf3b1245a6" name="common-soap-http-flow" />
+    </flow>
+	<flow name="Divide:\soapkit-config">
+		<flow-ref doc:name="_common-soap-http-flow" doc:id="7b3bce28-d9d6-424e-93bb-c4fe19d27837" name="common-soap-http-flow" />
+    </flow>
+</mule>
